@@ -2,6 +2,7 @@ $scriptPath = "C:\temp\update_windows.ps1"
 
 $VMList = @(
     @{ResourceGroup="GENDOX_LABS"; VMName="interoptoolsppe"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
+    @{ResourceGroup="GENDOX_LABS"; VMName="interopservices"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
 )
 
 

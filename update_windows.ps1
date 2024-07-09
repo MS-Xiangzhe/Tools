@@ -33,11 +33,11 @@ function InstallAndUpdateModules {
 
 Write-Host "Prepare powershell modules"
 # Call the function with the module names
-InstallAndUpdateModules -ModuleNames @('kbupdate', 'PendingReboot')
+InstallAndUpdateModules -ModuleNames @('PSWindowsUpdate', 'PendingReboot')
 
 Write-Host "Check Windows Update"
 # 获取可用的 Windows 更新
-Install-KbUpdate -ComputerName localhost -AllNeeded
+Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -Verbose
 
 # Function to check specific running tasks
 function Check-SpecificRunningTasks {
