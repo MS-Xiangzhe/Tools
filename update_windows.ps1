@@ -85,5 +85,8 @@ while ($true) {
 
 # check reboot pending
 if ((Test-PendingReboot).IsRebootPending) {
+    Write-Host "Reboot is pending. Rebooting the machine."
     Stop-Computer -Force -Verbose
+} else {
+    Write-Host "No reboot is pending."
 }
