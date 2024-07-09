@@ -174,7 +174,7 @@ function ManageVMUpdates {
 
 Write-Host "Script executing..."
 
-foreach ($VM in $VMList) {
+foreach ($vm in $VMList) {
     $ResourceGroup = $vm.ResourceGroup
     $VMName = $vm.VMName
     $TaskNamesToCheck = $vm.TaskNamesToCheck
