@@ -9,18 +9,18 @@ try {
     $AzureConnection = (connect-azaccount -SubscriptionId 963c56be-5368-4fd1-9477-f7d214f9888a).context
 }
 catch {
-    Write-Output "There is no system-assigned user identity. Aborting." 
+    Write-Host "There is no system-assigned user identity. Aborting." 
     exit
 }
 
-Write-Output $AzureConnection
+Write-Host $AzureConnection
 
 # set and store context
 $AzureContext = Set-AzContext -SubscriptionName "GenDox Document Management Service" -DefaultProfile $AzureConnection
 
 # Get current state of VM
 $status = (Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status -DefaultProfile $AzureContext).Statuses[1].Code
-Write-Output "`r`n Beginning VM status: $status `r`n"
+Write-Host "`r`n Beginning VM status: $status `r`n"
 
 function DownloadAndExecuteScript {
     param (
@@ -28,8 +28,14 @@ function DownloadAndExecuteScript {
         [string]$VMName,
         [string]$scriptPath
     )
-    Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile $scriptPath"
-    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptPath $scriptPath
+    Write-Host "`r`n Script downloading... `r`n"
+    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile `"$scriptPath`""
+    Write-Host "`r`n Script downloaded. `r`n"
+    $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
+    Write-Host $executionResultJson
+    Write-Host "`r`n Script execution... `r`n"
+    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`""
+    Write-Host "`r`n Script executed. `r`n"
     $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
     Write-Host $executionResultJson
     return $executionResult
@@ -64,7 +70,7 @@ $scriptPath = "C:\temp\update_windows.ps1"
 
 # 第一次下载并执行脚本
 $executionResult = DownloadAndExecuteScript -ResourceGroup $ResourceGroup -VMName $VMName -scriptPath $scriptPath
-Write-Output $executionResult
+Write-Host $executionResult
 
 # 检查是否有更新
 if (CheckForUpdates -executionResult $executionResult) {
@@ -72,10 +78,10 @@ if (CheckForUpdates -executionResult $executionResult) {
     RestartVMIfNeeded -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
     # 再次下载并执行脚本
     $executionResult = DownloadAndExecuteScript -ResourceGroup $ResourceGroup -VMName $VMName -scriptPath $scriptPath
-    Write-Output $executionResult
+    Write-Host $executionResult
     # 再次检查更新并可能重启
     if (CheckForUpdates -executionResult $executionResult) {
         RestartVMIfNeeded -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
     }
 }
-Write-Output "`r`n Script execution completed. `r`n"
+Write-Host "`r`n Script execution completed. `r`n"

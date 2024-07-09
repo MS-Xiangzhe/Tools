@@ -1,3 +1,8 @@
+param(
+    [string[]]$TaskNamesToCheck = @(),
+    [string[]]$TaskPathsToCheck = @()
+)
+
 function InstallAndUpdateModules {
     param(
         [Parameter(Mandatory = $true)]
@@ -30,27 +35,6 @@ Write-Output "Prepare powershell modules"
 # Call the function with the module names
 InstallAndUpdateModules -ModuleNames @('PSWindowsUpdate', 'PendingReboot')
 
-# Loop until no tasks are running
-$maxLoop = 10
-while ($true) {
-    if ($maxLoop -eq 0) {
-        Write-Output "Max loop reached. Exiting the script."
-        exit 1
-    }
-    $maxLoop--
-    # Check if any task is running
-    $runningTasks = Get-ScheduledTask | Where-Object { $_.State -eq 'Running' }
-
-    if ($runningTasks) {
-        Write-Output "There are running tasks. Waiting 10 seconds before checking again."
-        Write-Output $runningTasks
-        Start-Sleep -Seconds 10
-    } else {
-        Write-Output "No tasks are running. Continuing with the script."
-        break
-    }
-}
-
 Write-Output "Check Windows Update"
 # 获取可用的 Windows 更新
 $updates = Get-WindowsUpdate
@@ -59,10 +43,61 @@ $updates = Get-WindowsUpdate
 if ($updates.Count -gt 0) {
     Write-Output "Update available."
     Write-Output $updates
-    Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot -Verbose
+    Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -Verbose
     Write-Output "Windows Update installed."
 } else {
     Write-Output "No Update available."
+}
+
+# Function to check specific running tasks
+function Check-SpecificRunningTasks {
+    param(
+        [Parameter(Mandatory = $false)]
+        [string[]]$TaskNames = @(),
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$TaskPaths = @()
+    )
+
+    $runningTasks = Get-ScheduledTask | Where-Object { $_.State -eq 'Running' }
+
+    if ($TaskNames.Count -gt 0) {
+        $runningTasks = $runningTasks | Where-Object { $TaskNames -contains $_.TaskName }
+    }
+
+    if ($TaskPaths.Count -gt 0) {
+        $runningTasks = $runningTasks | Where-Object {
+            foreach ($path in $TaskPaths) {
+                if ($_.Path -like "*$path*") {
+                    return $true
+                }
+            }
+            return $false
+        }
+    }
+
+    return $runningTasks
+}
+
+# Loop until no specified tasks are running
+$maxLoop = 10
+while ($true) {
+    if ($maxLoop -eq 0) {
+        Write-Output "Max loop reached. Exiting the script."
+        exit 1
+    }
+    $maxLoop--
+    # Check if any specified task is running
+    $runningTasks = Check-SpecificRunningTasks -TaskNames $TaskNamesToCheck -TaskPaths $TaskPathsToCheck
+
+    if ($runningTasks) {
+        Write-Output "There are specified running tasks. Waiting 10 seconds before checking again."
+        Write-Output $runningTasks
+        Start-Sleep -Seconds 10
+    } else {
+        Write-Output "No specified tasks are running. Continuing with the script."
+        break
+    }
 }
 
 # check reboot pending
