@@ -1,12 +1,12 @@
 $scriptPath = "C:\temp\update_windows.ps1"
 
 $VMList = @(
-   # @{ResourceGroup="GENDOX_LABS"; VMName="interoptoolsppe"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
-   # @{ResourceGroup="GENDOX_LABS"; VMName="interopservices"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
-   # @{ResourceGroup="GENDOX_LABS"; VMName="GenDoxServices3"; TaskNamesToCheck=@() ; TaskPathsToCheck=@("\\Interoperability Tasks", "\\PATSetup")}
-   # @{ResourceGroup="GENDOX_LABS"; VMName="GendoxDM4"; TaskNamesToCheck=@() ; TaskPathsToCheck=@("\\DistillMetaData", "\\PATSetup")}
+    @{ResourceGroup="GENDOX_LABS"; VMName="interoptoolsppe"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
+    @{ResourceGroup="GENDOX_LABS"; VMName="interopservices"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
+    @{ResourceGroup="GENDOX_LABS"; VMName="GenDoxServices3"; TaskNamesToCheck=@() ; TaskPathsToCheck=@("\\Interoperability Tasks", "\\PATSetup")}
+    @{ResourceGroup="GENDOX_LABS"; VMName="GendoxDM4"; TaskNamesToCheck=@() ; TaskPathsToCheck=@("\\DistillMetaData", "\\PATSetup")}
     @{ResourceGroup="GENDOX_LABS"; VMName="GenDoxDM3"; TaskNamesToCheck=@() ; TaskPathsToCheck=@("\\DMtest", "\\PATSetup")}
-   # @{ResourceGroup="GENDOX_LABS"; VMName="GenDoxServiceTest"; TaskNamesToCheck=@() ; TaskPathsToCheck=@("\\Microsoft\\OInterop", "\\Microsoft\\OInteropSA")}
+    @{ResourceGroup="GENDOX_LABS"; VMName="GenDoxServiceTest"; TaskNamesToCheck=@() ; TaskPathsToCheck=@("\\Microsoft\\OInterop", "\\Microsoft\\OInteropSA")}
 )
 
 
@@ -18,13 +18,21 @@ try {
     $AzureConnection = (connect-azaccount -SubscriptionId 963c56be-5368-4fd1-9477-f7d214f9888a).context
 }
 catch {
-    Write-Host "There is no system-assigned user identity. Aborting." 
+    Write-VMLog $ResourceGroup $VMName "There is no system-assigned user identity. Aborting." 
     exit
 }
 
 # set and store context
 $AzureContext = Set-AzContext -SubscriptionName "GenDox Document Management Service" -DefaultProfile $AzureConnection
 
+function Write-VMLog {
+    param (
+        [string]$ResourceGroup,
+        [string]$VMName,
+        [string]$Message
+    )
+    Write-VMLog $ResourceGroup $VMName "$ResourceGroup::${VMName}: $Message"
+}
 
 function UpdateWindows {
     param (
@@ -33,20 +41,20 @@ function UpdateWindows {
         [string[]]$TaskNamesToCheck,
         [string[]]$TaskPathsToCheck
     )
-    Write-Host "Script downloading..."
+    Write-VMLog $ResourceGroup $VMName "Script downloading..."
     $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile `"$scriptPath`""
     if ($executionResult.Status -ne "Succeeded") {
-        Write-Host "Script download failed."
+        Write-VMLog $ResourceGroup $VMName "Script download failed."
         return $executionResult
     }
-    Write-Host "Script downloaded."
-    Write-Host "Script execution..."
+    Write-VMLog $ResourceGroup $VMName "Script downloaded."
+    Write-VMLog $ResourceGroup $VMName "Script execution..."
     $ArgsTaskNamesToCheck = ($TaskNamesToCheck -join ',').TrimEnd(',')
     $ArgsTaskPathsToCheck = ($TaskPathsToCheck -join ',').TrimEnd(',')
     $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`" `"$ArgsTaskNamesToCheck`" `"$ArgsTaskPathsToCheck`""
-    Write-Host "Script executed."
+    Write-VMLog $ResourceGroup $VMName "Script executed."
     $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
-    Write-Host $executionResultJson
+    Write-VMLog $ResourceGroup $VMName $executionResultJson
     return $executionResult
 }
 
@@ -69,7 +77,7 @@ function StopAzVM {
         [object]$AzureContext
     )
     do {
-        Write-Host "Stoping VM: $VMName in Resource Group: $ResourceGroup"
+        Write-VMLog $ResourceGroup $VMName "Stoping VM: $VMName in Resource Group: $ResourceGroup"
         Stop-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -Force -DefaultProfile $AzureContext
     } while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext) -ne $false)
 }
@@ -81,7 +89,7 @@ function StartAzVM {
         [object]$AzureContext
     )
     while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext) -ne $true) {
-        Write-Host "Starting VM: $VMName in Resource Group: $ResourceGroup"
+        Write-VMLog $ResourceGroup $VMName "Starting VM: $VMName in Resource Group: $ResourceGroup"
         Start-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -DefaultProfile $AzureContext
         Start-Sleep -Seconds 10
     }
@@ -95,7 +103,7 @@ function RestartVMIfNeeded {
     )
     while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext) -ne $true) {
         StopAzVM -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
-        Write-Host "VM is not running. Starting the VM."
+        Write-VMLog $ResourceGroup $VMName "VM is not running. Starting the VM."
         StartAzVM -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
     }
 }
@@ -105,28 +113,28 @@ function Get-AzVMStatus {
         [string]$ResourceGroup,
         [string]$VMName
     )
-    Write-Host "Getting VM status..."
+    Write-VMLog $ResourceGroup $VMName "Getting VM status..."
     $status = (Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status -DefaultProfile $AzureContext).Statuses[1].Code
-    Write-Host "VM status: $status"
+    Write-VMLog $ResourceGroup $VMName "VM status: $status"
     if ($status -eq "Powerstate/running") {
         try{
-            Write-Host "VM is running. Checking if it is accessible."
+            Write-VMLog $ResourceGroup $VMName "VM is running. Checking if it is accessible."
             $maxLoop = 3
             while ($maxLoop -gt 0) {
                 $maxLoop--
-                $status = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Write-Host 'VM is running.'"
+                $status = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Write-VMLog $ResourceGroup $VMName 'VM is running.'"
                 if ($status.Status -ne "Succeeded") {
-                    Write-Host "VM is not accessible."
+                    Write-VMLog $ResourceGroup $VMName "VM is not accessible."
                     return $false
                 } else {
                     Start-Sleep -Seconds 10
                 }
             }
         } catch {
-            Write-Host "VM is not accessible."
+            Write-VMLog $ResourceGroup $VMName "VM is not accessible."
             return $false
         }
-        Write-Host "VM is accessible."
+        Write-VMLog $ResourceGroup $VMName "VM is accessible."
         return $true
     }
     return $false
@@ -141,40 +149,41 @@ function ManageVMUpdates {
     )
 
     # Get current state of VM
-    Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+    Write-VMLog $ResourceGroup $VMName "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
     $maxLoop = 3
     while ($maxLoop -gt 0) {
-        Write-Host "RestartVMIfNeeded... Checking if VM is running."
+        Write-VMLog $ResourceGroup $VMName "RestartVMIfNeeded... Checking if VM is running."
         if ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext) -ne $true) {
-            Write-Host "RestartVMIfNeeded..."
+            Write-VMLog $ResourceGroup $VMName "RestartVMIfNeeded..."
             RestartVMIfNeeded -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
         }
-        Write-Host "RestartVMIfNeeded executed."
-        Write-Host "UpdateWindows..."
-        UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
-        Write-Host "UpdateWindows executed."
+        Write-VMLog $ResourceGroup $VMName "RestartVMIfNeeded executed."
+        Write-VMLog $ResourceGroup $VMName "UpdateWindows..."
+        $executionResult = UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
+        Write-VMLog $ResourceGroup $VMName "UpdateWindows executed."
         if (CheckForUpdates -executionResult $executionResult -eq $false) {
-            Write-Host "No Update available."
+            Write-VMLog $ResourceGroup $VMName "No Update available."
             break
         }
         $maxLoop--
     }
     if ($maxLoop -eq 0) {
-        Write-Host "Max loop reached. Exiting the script."
+        Write-VMLog $ResourceGroup $VMName "Max loop reached. Exiting the script."
     }
 }
 
 Write-Host "Script executing..."
-foreach ($vm in $VMList) {
+
+foreach ($VM in $VMList) {
     $ResourceGroup = $vm.ResourceGroup
     $VMName = $vm.VMName
     $TaskNamesToCheck = $vm.TaskNamesToCheck
     $TaskPathsToCheck = $vm.TaskPathsToCheck
 
-    Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
-    Write-Host "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
+    Write-VMLog $ResourceGroup $VMName "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+    Write-VMLog $ResourceGroup $VMName "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
     ManageVMUpdates -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
-    Write-Host "UpdateWindows executed."
+    Write-VMLog $ResourceGroup $VMName "UpdateWindows executed."
 }
 
 Write-Host "Script executed."
