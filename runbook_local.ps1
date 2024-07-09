@@ -1,5 +1,3 @@
-$scriptPath = "C:\temp\update_windows.ps1"
-
 $VMList = @(
     @{ResourceGroup="GENDOX_LABS"; VMName="interoptoolsppe"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
     @{ResourceGroup="GENDOX_LABS"; VMName="interopservices"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
@@ -18,7 +16,7 @@ try {
     $AzureConnection = (connect-azaccount -SubscriptionId 963c56be-5368-4fd1-9477-f7d214f9888a).context
 }
 catch {
-    Write-VMLog $ResourceGroup $VMName "There is no system-assigned user identity. Aborting." 
+    Write-Host "There is no system-assigned user identity. Aborting." 
     exit
 }
 
@@ -31,9 +29,10 @@ function Write-VMLog {
         [string]$VMName,
         [string]$Message
     )
-    Write-VMLog $ResourceGroup $VMName "$ResourceGroup::${VMName}: $Message"
+    Write-Host "$ResourceGroup::${VMName}: $Message"
 }
 
+$scriptPath = "C:\temp\update_windows.ps1"
 function UpdateWindows {
     param (
         [string]$ResourceGroup,
@@ -161,7 +160,7 @@ function ManageVMUpdates {
         Write-VMLog $ResourceGroup $VMName "UpdateWindows..."
         $executionResult = UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
         Write-VMLog $ResourceGroup $VMName "UpdateWindows executed."
-        if (CheckForUpdates -executionResult $executionResult -eq $false) {
+        if ((CheckForUpdates -executionResult $executionResult) -eq $false) {
             Write-VMLog $ResourceGroup $VMName "No Update available."
             break
         }
@@ -174,16 +173,33 @@ function ManageVMUpdates {
 
 Write-Host "Script executing..."
 
-foreach ($vm in $VMList) {
-    $ResourceGroup = $vm.ResourceGroup
-    $VMName = $vm.VMName
-    $TaskNamesToCheck = $vm.TaskNamesToCheck
-    $TaskPathsToCheck = $vm.TaskPathsToCheck
+# Check PowerShell version
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    Write-Host "PowerShell version is less than 7.0. Parallel processing is not supported."
+    # Alternative approach without parallel processing
+    $VMList | ForEach-Object {
+        $ResourceGroup = $_.ResourceGroup
+        $VMName = $_.VMName
+        $TaskNamesToCheck = $_.TaskNamesToCheck
+        $TaskPathsToCheck = $_.TaskPathsToCheck
 
-    Write-VMLog $ResourceGroup $VMName "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
-    Write-VMLog $ResourceGroup $VMName "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
-    ManageVMUpdates -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
-    Write-VMLog $ResourceGroup $VMName "UpdateWindows executed."
+        Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+        Write-Host "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
+        ManageVMUpdates -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
+        Write-Host "UpdateWindows executed."
+    }
+} else {
+    $VMList | ForEach-Object -Parallel {
+        $ResourceGroup = $_.ResourceGroup
+        $VMName = $_.VMName
+        $TaskNamesToCheck = $_.TaskNamesToCheck
+        $TaskPathsToCheck = $_.TaskPathsToCheck
+
+        Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+        Write-Host "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
+        ManageVMUpdates -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
+        Write-Host "UpdateWindows executed."
+    } -ThrottleLimit 5
 }
 
 Write-Host "Script executed."
