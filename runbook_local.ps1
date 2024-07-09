@@ -13,8 +13,6 @@ catch {
     exit
 }
 
-Write-Host $AzureConnection
-
 # set and store context
 $AzureContext = Set-AzContext -SubscriptionName "GenDox Document Management Service" -DefaultProfile $AzureConnection
 

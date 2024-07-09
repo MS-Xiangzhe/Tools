@@ -16,13 +16,13 @@ function InstallAndUpdateModules {
         # Check if module is installed
         if (-not(Get-Module -ListAvailable -Name $ModuleName)) {
             # If not installed, install for the current user
-            Write-Output "Installing module $ModuleName"
+            Write-Host "Installing module $ModuleName"
             Install-Module -Name $ModuleName -Scope CurrentUser -Force
         }
 
         # Update the module
         if (-not $DisableUpdate) {
-            Write-Output "Updating module $ModuleName"
+            Write-Host "Updating module $ModuleName"
             Update-Module -Name $ModuleName -Force
         }
 
@@ -31,22 +31,22 @@ function InstallAndUpdateModules {
     }
 }
 
-Write-Output "Prepare powershell modules"
+Write-Host "Prepare powershell modules"
 # Call the function with the module names
 InstallAndUpdateModules -ModuleNames @('PSWindowsUpdate', 'PendingReboot')
 
-Write-Output "Check Windows Update"
+Write-Host "Check Windows Update"
 # 获取可用的 Windows 更新
 $updates = Get-WindowsUpdate
 
 # 检查是否有可用的更新
 if ($updates.Count -gt 0) {
-    Write-Output "Update available."
-    Write-Output $updates
+    Write-Host "Update available."
+    Write-Host $updates
     Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -Verbose
-    Write-Output "Windows Update installed."
+    Write-Host "Windows Update installed."
 } else {
-    Write-Output "No Update available."
+    Write-Host "No Update available."
 }
 
 # Function to check specific running tasks
@@ -83,7 +83,7 @@ function Check-SpecificRunningTasks {
 $maxLoop = 10
 while ($true) {
     if ($maxLoop -eq 0) {
-        Write-Output "Max loop reached. Exiting the script."
+        Write-Host "Max loop reached. Exiting the script."
         exit 1
     }
     $maxLoop--
@@ -91,11 +91,11 @@ while ($true) {
     $runningTasks = Check-SpecificRunningTasks -TaskNames $TaskNamesToCheck -TaskPaths $TaskPathsToCheck
 
     if ($runningTasks) {
-        Write-Output "There are specified running tasks. Waiting 10 seconds before checking again."
-        Write-Output $runningTasks
+        Write-Host "There are specified running tasks. Waiting 10 seconds before checking again."
+        Write-Host $runningTasks
         Start-Sleep -Seconds 10
     } else {
-        Write-Output "No specified tasks are running. Continuing with the script."
+        Write-Host "No specified tasks are running. Continuing with the script."
         break
     }
 }
