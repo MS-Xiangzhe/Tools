@@ -31,7 +31,9 @@ Write-Output "Prepare powershell modules"
 InstallAndUpdateModules -ModuleNames @('PSWindowsUpdate', 'PendingReboot')
 
 # Loop until no tasks are running
-while ($true) {
+$maxLoop = 100
+while ($maxLoop -gt 0) {
+    $maxLoop--
     # Check if any task is running
     $runningTasks = Get-ScheduledTask | Where-Object { $_.State -eq 'Running' }
 
