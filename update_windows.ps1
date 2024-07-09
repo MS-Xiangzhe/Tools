@@ -37,7 +37,7 @@ InstallAndUpdateModules -ModuleNames @('PSWindowsUpdate', 'PendingReboot')
 
 Write-Host "Check Windows Update"
 # 获取可用的 Windows 更新
-$updates = Get-WindowsUpdate
+$updates = Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Verbose
 
 # 检查是否有可用的更新
 if ($updates.Count -gt 0) {

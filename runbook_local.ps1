@@ -1,7 +1,7 @@
 $scriptPath = "C:\temp\update_windows.ps1"
 
 $VMList = @(
-    ("GENDOX_LABS", "interoptoolsppe", "", "")
+    @{ResourceGroup="GENDOX_LABS"; VMName="interoptoolsppe"; TaskNamesToCheck=@() ; TaskPathsToCheck=@()}
 )
 
 
@@ -25,17 +25,19 @@ function UpdateWindows {
     param (
         [string]$ResourceGroup,
         [string]$VMName,
-        [string]$TaskNamesToCheck,
-        [string]$TaskPathsToCheck 
+        [string[]]$TaskNamesToCheck,
+        [string[]]$TaskPathsToCheck
     )
-    Write-Host "`r`n Script downloading... `r`n"
+    Write-Host "Script downloading..."
     $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile `"$scriptPath`""
-    Write-Host "`r`n Script downloaded. `r`n"
+    Write-Host "Script downloaded."
     $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
     Write-Host $executionResultJson
-    Write-Host "`r`n Script execution... `r`n"
-    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`" -TaskNamesToCheck `"$TaskNamesToCheck`" -TaskPathsToCheck `"$TaskPathsToCheck`""
-    Write-Host "`r`n Script executed. `r`n"
+    Write-Host "Script execution..."
+    $ArgsTaskNamesToCheck = ($TaskNamesToCheck -join ',').TrimEnd(',')
+    $ArgsTaskPathsToCheck = ($TaskPathsToCheck -join ',').TrimEnd(',')
+    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`" `"$ArgsTaskNamesToCheck`" `"$ArgsTaskPathsToCheck`""
+    Write-Host "Script executed."
     $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
     Write-Host $executionResultJson
     return $executionResult
@@ -76,34 +78,24 @@ function ManageVMUpdates {
     )
 
     # Get current state of VM
+    Write-Host "Getting VM status..."
     $status = (Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status -DefaultProfile $AzureContext).Statuses[1].Code
-    Write-Host "`r`n Beginning VM status: $status `r`n"
-
-    $scriptPath = "C:\temp\update_windows.ps1"
-
+    Write-Host "Beginning VM status: $status"
+    Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+    UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
     $maxLoop = 3
-    foreach ($vm in $VMList) {
-        $ResourceGroup = $vm[0]
-        $VMName = $vm[1]
-        # 假设 TaskNamesToCheck 和 TaskPathsToCheck 已经定义
-        $TaskNamesToCheck = "您的任务名称"
-        $TaskPathsToCheck = "您的任务路径"
-
-        Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
-        UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
-    }
     while ($true) {
-        Write-Host "`r`n UpdateWindows... `r`n"
-        $executionResult = UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -scriptPath $scriptPath -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
-        Write-Host "`r`n UpdateWindows executed. `r`n"
-        Write-Host "`r`n RestartVMIfNeeded... `r`n"
+        Write-Host "UpdateWindows..."
+        $executionResult = UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
+        Write-Host "UpdateWindows executed."
+        Write-Host "RestartVMIfNeeded..."
         RestartVMIfNeeded -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
-        Write-Host "`r`n RestartVMIfNeeded executed. `r`n"
+        Write-Host "RestartVMIfNeeded executed."
         if (!CheckForUpdates -executionResult $executionResult) {
             Write-Host "No Update available."
             break
         }
-        Write-Host "`r`n Update available. Checking again. `r`n"
+        Write-Host "Update available. Checking again."
         $maxLoop--
         if ($maxLoop -eq 0) {
             Write-Host "Max loop reached. Exiting the script."
@@ -114,12 +106,13 @@ function ManageVMUpdates {
 
 Write-Host "Script executing..."
 foreach ($vm in $VMList) {
-    $ResourceGroup = $vm[0]
-    $VMName = $vm[1]
-    $TaskNamesToCheck = $vm[2]
-    $TaskPathsToCheck = $vm[3]
+    $ResourceGroup = $vm.ResourceGroup
+    $VMName = $vm.VMName
+    $TaskNamesToCheck = $vm.TaskNamesToCheck
+    $TaskPathsToCheck = $vm.TaskPathsToCheck
 
     Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+    Write-Host "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
     UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
     Write-Host "UpdateWindows executed."
 }
