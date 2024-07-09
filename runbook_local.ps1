@@ -30,9 +30,11 @@ function UpdateWindows {
     )
     Write-Host "Script downloading..."
     $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile `"$scriptPath`""
+    if ($executionResult.Status -ne "Succeeded") {
+        Write-Host "Script download failed."
+        return $executionResult
+    }
     Write-Host "Script downloaded."
-    $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
-    Write-Host $executionResultJson
     Write-Host "Script execution..."
     $ArgsTaskNamesToCheck = ($TaskNamesToCheck -join ',').TrimEnd(',')
     $ArgsTaskPathsToCheck = ($TaskPathsToCheck -join ',').TrimEnd(',')
