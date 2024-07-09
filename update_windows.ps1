@@ -17,7 +17,7 @@ function InstallAndUpdateModules {
         if (-not(Get-Module -ListAvailable -Name $ModuleName)) {
             # If not installed, install for the current user
             Write-Host "Installing module $ModuleName"
-            Install-Module -Name $ModuleName -Scope CurrentUser -Force
+            Install-Module -Name $ModuleName -Force
         }
 
         # Update the module
