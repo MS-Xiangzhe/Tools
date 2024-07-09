@@ -28,9 +28,10 @@ function DownloadAndExecuteScript {
         [string]$VMName,
         [string]$scriptPath
     )
-    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile $scriptPath"
-    Write-Host $executionResult
+    Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile $scriptPath"
     $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptPath $scriptPath
+    $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
+    Write-Host $executionResultJson
     return $executionResult
 }
 function CheckForUpdates {
