@@ -52,28 +52,21 @@ if ($updates.Count -gt 0) {
 # Function to check specific running tasks
 function Check-SpecificRunningTasks {
     param(
-        [Parameter(Mandatory = $false)]
         [string[]]$TaskNames = @(),
-
-        [Parameter(Mandatory = $false)]
         [string[]]$TaskPaths = @()
     )
 
     $runningTasks = Get-ScheduledTask | Where-Object { $_.State -eq 'Running' }
 
-    if ($TaskNames.Count -gt 0) {
-        $runningTasks = $runningTasks | Where-Object { $TaskNames -contains $_.TaskName }
-    }
+    $runningTasks = $runningTasks | Where-Object { $TaskNames -contains $_.TaskName }
 
-    if ($TaskPaths.Count -gt 0) {
-        $runningTasks = $runningTasks | Where-Object {
-            foreach ($path in $TaskPaths) {
-                if ($_.Path -like "*$path*") {
-                    return $true
-                }
+    $runningTasks = $runningTasks | Where-Object {
+        foreach ($path in $TaskPaths) {
+            if ($_.Path -like "*$path*") {
+                return $true
             }
-            return $false
         }
+        return $false
     }
 
     return $runningTasks

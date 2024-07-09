@@ -1,5 +1,9 @@
-$ResourceGroup = "GENDOX_LABS"
-$VMName = "interoptoolsppe"
+$scriptPath = "C:\temp\update_windows.ps1"
+
+$VMList = @(
+    ("GENDOX_LABS", "interoptoolsppe", "", "")
+)
+
 
 # Ensures you do not inherit an AzContext in your runbook
 $null = Disable-AzContextAutosave -Scope Process
@@ -16,15 +20,13 @@ catch {
 # set and store context
 $AzureContext = Set-AzContext -SubscriptionName "GenDox Document Management Service" -DefaultProfile $AzureConnection
 
-# Get current state of VM
-$status = (Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status -DefaultProfile $AzureContext).Statuses[1].Code
-Write-Host "`r`n Beginning VM status: $status `r`n"
 
-function DownloadAndExecuteScript {
+function UpdateWindows {
     param (
         [string]$ResourceGroup,
         [string]$VMName,
-        [string]$scriptPath
+        [string]$TaskNamesToCheck,
+        [string]$TaskPathsToCheck 
     )
     Write-Host "`r`n Script downloading... `r`n"
     $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile `"$scriptPath`""
@@ -32,12 +34,13 @@ function DownloadAndExecuteScript {
     $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
     Write-Host $executionResultJson
     Write-Host "`r`n Script execution... `r`n"
-    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`""
+    $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`" -TaskNamesToCheck `"$TaskNamesToCheck`" -TaskPathsToCheck `"$TaskPathsToCheck`""
     Write-Host "`r`n Script executed. `r`n"
     $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
     Write-Host $executionResultJson
     return $executionResult
 }
+
 function CheckForUpdates {
     param (
         [object]$executionResult
@@ -64,22 +67,61 @@ function RestartVMIfNeeded {
     Start-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -DefaultProfile $AzureContext
 }
 
-$scriptPath = "C:\temp\update_windows.ps1"
+function ManageVMUpdates {
+    param (
+        [string]$ResourceGroup,
+        [string]$VMName,
+        [string]$TaskNamesToCheck,
+        [string]$TaskPathsToCheck 
+    )
 
-# 第一次下载并执行脚本
-$executionResult = DownloadAndExecuteScript -ResourceGroup $ResourceGroup -VMName $VMName -scriptPath $scriptPath
-Write-Host $executionResult
+    # Get current state of VM
+    $status = (Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status -DefaultProfile $AzureContext).Statuses[1].Code
+    Write-Host "`r`n Beginning VM status: $status `r`n"
 
-# 检查是否有更新
-if (CheckForUpdates -executionResult $executionResult) {
-    # 如果有更新，重启虚拟机
-    RestartVMIfNeeded -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
-    # 再次下载并执行脚本
-    $executionResult = DownloadAndExecuteScript -ResourceGroup $ResourceGroup -VMName $VMName -scriptPath $scriptPath
-    Write-Host $executionResult
-    # 再次检查更新并可能重启
-    if (CheckForUpdates -executionResult $executionResult) {
+    $scriptPath = "C:\temp\update_windows.ps1"
+
+    $maxLoop = 3
+    foreach ($vm in $VMList) {
+        $ResourceGroup = $vm[0]
+        $VMName = $vm[1]
+        # 假设 TaskNamesToCheck 和 TaskPathsToCheck 已经定义
+        $TaskNamesToCheck = "您的任务名称"
+        $TaskPathsToCheck = "您的任务路径"
+
+        Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+        UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
+    }
+    while ($true) {
+        Write-Host "`r`n UpdateWindows... `r`n"
+        $executionResult = UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -scriptPath $scriptPath -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
+        Write-Host "`r`n UpdateWindows executed. `r`n"
+        Write-Host "`r`n RestartVMIfNeeded... `r`n"
         RestartVMIfNeeded -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
+        Write-Host "`r`n RestartVMIfNeeded executed. `r`n"
+        if (!CheckForUpdates -executionResult $executionResult) {
+            Write-Host "No Update available."
+            break
+        }
+        Write-Host "`r`n Update available. Checking again. `r`n"
+        $maxLoop--
+        if ($maxLoop -eq 0) {
+            Write-Host "Max loop reached. Exiting the script."
+            break
+        }
     }
 }
-Write-Host "`r`n Script execution completed. `r`n"
+
+Write-Host "Script executing..."
+foreach ($vm in $VMList) {
+    $ResourceGroup = $vm[0]
+    $VMName = $vm[1]
+    $TaskNamesToCheck = $vm[2]
+    $TaskPathsToCheck = $vm[3]
+
+    Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+    UpdateWindows -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
+    Write-Host "UpdateWindows executed."
+}
+
+Write-Host "Script executed."
