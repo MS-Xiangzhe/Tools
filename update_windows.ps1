@@ -36,7 +36,7 @@ Write-Host "Prepare powershell modules"
 InstallAndUpdateModules -ModuleNames @('PSWindowsUpdate', 'PendingReboot')
 
 Write-Host "Check Windows Update"
-# 获取可用的 Windows 更新
+# Get and install Windows updates
 Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -Verbose
 
 # Function to check specific running tasks
