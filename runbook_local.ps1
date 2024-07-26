@@ -1,10 +1,10 @@
 $VMList = @(
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "interoptoolsppe"; TaskNamesToCheck = @() ; TaskPathsToCheck = @() }
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "interopservices"; TaskNamesToCheck = @() ; TaskPathsToCheck = @() }
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxServices3"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\Interoperability Tasks", "\\PATSetup") }
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "GendoxDM4"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\DistillMetaData", "\\PATSetup") }
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxDM3"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\DMtest", "\\PATSetup") }
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxServiceTest"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\Microsoft\\OInterop", "\\Microsoft\\OInteropSA") }
+    @{ResourceGroup = "GENDOX_LABS"; VMName = "interoptoolsppe"; TaskNamesToCheck = @() ; TaskPathsToCheck = @() ; ProcessNamesToCheck = @() }
+    @{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxDM3"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\DMtest", "\\PATSetup") ; ProcessNamesToCheck = @() }
+    @{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxServiceTest"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\Microsoft\\OInterop", "\\Microsoft\\OInteropSA") ; ProcessNamesToCheck = @() }
+    #@{ResourceGroup = "GENDOX_LABS"; VMName = "interopservices"; TaskNamesToCheck = @() ; TaskPathsToCheck = @() }
+    #@{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxServices3"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\Interoperability Tasks", "\\PATSetup") }
+    #@{ResourceGroup = "GENDOX_LABS"; VMName = "GendoxDM4"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\DistillMetaData", "\\PATSetup") }
 )
 
 
@@ -39,7 +39,8 @@ $scriptBlock = {
             [string]$ResourceGroup,
             [string]$VMName,
             [string[]]$TaskNamesToCheck,
-            [string[]]$TaskPathsToCheck
+            [string[]]$TaskPathsToCheck,
+            [string[]]$ProcessNamesToCheck
         )
         Write-VMLog $ResourceGroup $VMName "Script downloading..."
         $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MS-Xiangzhe/Tools/main/update_windows.ps1' -OutFile `"$scriptPath`""
@@ -51,7 +52,8 @@ $scriptBlock = {
         Write-VMLog $ResourceGroup $VMName "Script execution..."
         $ArgsTaskNamesToCheck = ($TaskNamesToCheck -join ',').TrimEnd(',')
         $ArgsTaskPathsToCheck = ($TaskPathsToCheck -join ',').TrimEnd(',')
-        $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`" `"$ArgsTaskNamesToCheck`" `"$ArgsTaskPathsToCheck`""
+        $ArgsProcessNamesToCheck = ($ProcessNamesToCheck -join ',').TrimEnd(',')
+        $executionResult = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "powershell -ExecutionPolicy Unrestricted -File `"$scriptPath`" `"$ArgsTaskNamesToCheck`" `"$ArgsTaskPathsToCheck`" `"$ArgsProcessNamesToCheck`""
         Write-VMLog $ResourceGroup $VMName "Script executed."
         $executionResultJson = $executionResult | ConvertTo-Json -Depth 10
         Write-VMLog $ResourceGroup $VMName $executionResultJson
