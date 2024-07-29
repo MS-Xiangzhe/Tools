@@ -43,7 +43,6 @@ $scriptBlock = {
             [string]$Message
         )
         Write-Verbose "$ResourceGroup::${VMName}: $Message"
-        Write-Host "$ResourceGroup::${VMName}: $Message"
     }
 
     $scriptPath = "C:\temp\update_windows.ps1"
@@ -133,30 +132,7 @@ $scriptBlock = {
         Write-VMLog $ResourceGroup $VMName "Getting VM status..."
         $status = (Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status -DefaultProfile $AzureContext).Statuses[1].Code
         Write-VMLog $ResourceGroup $VMName "VM status: $status"
-        if ($status -eq "Powerstate/running") {
-            try {
-                Write-VMLog $ResourceGroup $VMName "VM is running. Checking if it is accessible."
-                $maxLoop = 3
-                while ($maxLoop -gt 0) {
-                    $maxLoop--
-                    $status = Invoke-AzVMRunCommand -ResourceGroupName $ResourceGroup -VMName $VMName -CommandId "RunPowerShellScript" -ScriptString "Write-VMLog $ResourceGroup $VMName 'VM is running.'"
-                    if ($status.Status -ne "Succeeded") {
-                        Write-VMLog $ResourceGroup $VMName "VM is not accessible."
-                        return $false
-                    }
-                    else {
-                        Start-Sleep -Seconds 10
-                    }
-                }
-            }
-            catch {
-                Write-VMLog $ResourceGroup $VMName "VM is not accessible."
-                return $false
-            }
-            Write-VMLog $ResourceGroup $VMName "VM is accessible."
-            return $true
-        }
-        return $false
+        return $status -eq "Powerstate/running"
     }
 
     function ManageVMUpdates {
