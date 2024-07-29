@@ -1,7 +1,7 @@
 $VMList = @(
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "interoptoolsppe"; TaskNamesToCheck = @() ; TaskPathsToCheck = @() ; ProcessNamesToCheck = @() }
+    #@{ResourceGroup = "GENDOX_LABS"; VMName = "interoptoolsppe"; TaskNamesToCheck = @() ; TaskPathsToCheck = @() ; ProcessNamesToCheck = @() }
     @{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxDM3"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\DMtest", "\\PATSetup") ; ProcessNamesToCheck = @() }
-    @{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxServiceTest"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\Microsoft\\OInterop", "\\Microsoft\\OInteropSA") ; ProcessNamesToCheck = @() }
+    #@{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxServiceTest"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\Microsoft\\OInterop", "\\Microsoft\\OInteropSA") ; ProcessNamesToCheck = @() }
     #@{ResourceGroup = "GENDOX_LABS"; VMName = "interopservices"; TaskNamesToCheck = @() ; TaskPathsToCheck = @() }
     #@{ResourceGroup = "GENDOX_LABS"; VMName = "GenDoxServices3"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\Interoperability Tasks", "\\PATSetup") }
     #@{ResourceGroup = "GENDOX_LABS"; VMName = "GendoxDM4"; TaskNamesToCheck = @() ; TaskPathsToCheck = @("\\DistillMetaData", "\\PATSetup") }
@@ -23,6 +23,9 @@ catch {
 # set and store context
 $AzureContext = Set-AzContext -SubscriptionName "GenDox Document Management Service" -DefaultProfile $AzureConnection
 
+# Enable verbose output
+$VerbosePreference = "Continue"
+
 $scriptBlock = {
     function Write-VMLog {
         param (
@@ -30,6 +33,16 @@ $scriptBlock = {
             [string]$VMName,
             [string]$Message
         )
+        Write-VMLogV -Verbose -ResourceGroup $ResourceGroup -VMName $VMName -Message $Message
+    }
+    function Write-VMLogV {
+        [CmdletBinding()]
+        param (
+            [string]$ResourceGroup,
+            [string]$VMName,
+            [string]$Message
+        )
+        Write-Verbose "$ResourceGroup::${VMName}: $Message"
         Write-Host "$ResourceGroup::${VMName}: $Message"
     }
 
@@ -78,10 +91,12 @@ $scriptBlock = {
             [string]$VMName,
             [object]$AzureContext
         )
+        $maxLoop = 3
         do {
+            $maxLoop--
             Write-VMLog $ResourceGroup $VMName "Stoping VM: $VMName in Resource Group: $ResourceGroup"
             Stop-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -Force -DefaultProfile $AzureContext
-        } while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext) -ne $false)
+        } while (((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName) -ne $false) -and ($maxLoop -gt 0))
     }
 
     function StartAzVM {
@@ -90,7 +105,7 @@ $scriptBlock = {
             [string]$VMName,
             [object]$AzureContext
         )
-        while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext) -ne $true) {
+        while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName) -ne $true) {
             Write-VMLog $ResourceGroup $VMName "Starting VM: $VMName in Resource Group: $ResourceGroup"
             Start-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -DefaultProfile $AzureContext
             Start-Sleep -Seconds 10
@@ -103,7 +118,7 @@ $scriptBlock = {
             [string]$VMName,
             [object]$AzureContext
         )
-        while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext) -ne $true) {
+        while ((Get-AzVMStatus -ResourceGroup $ResourceGroup -VMName $VMName) -ne $true) {
             StopAzVM -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
             Write-VMLog $ResourceGroup $VMName "VM is not running. Starting the VM."
             StartAzVM -ResourceGroup $ResourceGroup -VMName $VMName -AzureContext $AzureContext
@@ -178,11 +193,11 @@ $scriptBlock = {
 }
 $scriptBlockString = $scriptBlock.ToString()
 
-Write-Host "Script executing..."
+Write-Output "Script executing..."
 
 # Check PowerShell version
 if ($PSVersionTable.PSVersion.Major -lt 7) {
-    Write-Host "PowerShell version is less than 7.0. Parallel processing is not supported."
+    Write-Output "PowerShell version is less than 7.0. Parallel processing is not supported."
     # Alternative approach without parallel processing
     $VMList | ForEach-Object {
         $scriptBlockFromString = [scriptblock]::Create($scriptBlockString)
@@ -192,10 +207,10 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
         $TaskNamesToCheck = $_.TaskNamesToCheck
         $TaskPathsToCheck = $_.TaskPathsToCheck
 
-        Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
-        Write-Host "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
+        Write-Output "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+        Write-Output "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
         ManageVMUpdates -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
-        Write-Host "UpdateWindows executed."
+        Write-Output "UpdateWindows executed."
     }
 }
 else {
@@ -210,11 +225,11 @@ else {
         $TaskNamesToCheck = $_.TaskNamesToCheck
         $TaskPathsToCheck = $_.TaskPathsToCheck
 
-        Write-Host "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
-        Write-Host "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
+        Write-Output "Updating Windows for VM: $VMName in Resource Group: $ResourceGroup"
+        Write-Output "Task Scheduled check: names: $TaskNamesToCheck, paths: $TaskPathsToCheck"
         ManageVMUpdates -ResourceGroup $ResourceGroup -VMName $VMName -TaskNamesToCheck $TaskNamesToCheck -TaskPathsToCheck $TaskPathsToCheck
-        Write-Host "UpdateWindows executed."
+        Write-Output "UpdateWindows executed."
     } -ThrottleLimit 5
 }
 
-Write-Host "Script executed."
+Write-Output "Script executed."
